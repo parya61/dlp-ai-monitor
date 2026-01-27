@@ -1,0 +1,80 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# Environment variables (СЕКРЕТЫ!)
+.env
+.env.local
+
+# Data (большие файлы данных не в git)
+data/raw/
+data/processed/
+data/synthetic/
+data/models/
+*.csv
+*.parquet
+*.pkl
+*.joblib
+
+# MLflow
+mlruns/
+mlartifacts/
+
+# Models (обученные модели не в git, используем DVC)
+*.h5
+*.pt
+*.pth
+*.ckpt
+*.model
+*.bin
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# DVC
+.dvc/tmp/
+.dvc/cache/
+
+# Coverage
+.coverage
+htmlcov/
