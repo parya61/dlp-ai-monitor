@@ -361,7 +361,7 @@ if __name__ == "__main__":
     
     # Загружаем данные
     loader = DataLoader()
-    csv_path = config.get_data_path("incidents_sample.csv", subdir="synthetic")
+    csv_path = config.get_data_path("incidents_30k.csv", subdir="synthetic")
     
     if not csv_path.exists():
         logger.error(f"File not found: {csv_path}")
