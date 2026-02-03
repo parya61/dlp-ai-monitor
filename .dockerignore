@@ -1,0 +1,43 @@
+# Виртуальное окружение (уже установим внутри контейнера)
+venv/
+env/
+.venv/
+
+# Python кэш (не нужен в контейнере)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Данные и модели (слишком большие, подключим через volumes)
+data/raw/
+data/processed/
+models/*.pkl
+*.joblib
+
+# Git (не нужен внутри контейнера)
+.git/
+.gitignore
+
+# IDE настройки
+.vscode/
+.idea/
+*.swp
+
+# Логи и временные файлы
+logs/
+*.log
+tmp/
+
+# Документация (не нужна внутри контейнера)
+docs/
+*.md
+
+# Тесты (запускаем отдельно)
+tests/
+
+# Docker файлы (не копируем сами в себя)
+Dockerfile
+docker-compose.yml
+.dockerignore

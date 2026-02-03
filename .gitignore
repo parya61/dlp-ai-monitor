@@ -78,3 +78,6 @@ Thumbs.db
 # Coverage
 .coverage
 htmlcov/
+
+# CatBoost temporary files
+catboost_info/

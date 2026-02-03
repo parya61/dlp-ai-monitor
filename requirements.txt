@@ -28,3 +28,10 @@ seaborn>=0.12.0
 
 # Optional: Alternative vector DBs
 # chromadb>=0.4.0  # uncomment if you want to try ChromaDB
+
+
+# API dependencies
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+pydantic==2.10.0
+python-multipart==0.0.17
