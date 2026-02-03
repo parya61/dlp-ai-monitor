@@ -203,32 +203,17 @@ class FeatureExtractor:
     # =========================================================================
     # ИЗВЛЕЧЕНИЕ МЕТАДАННЫХ
     # =========================================================================
-    
     def _extract_metadata_features(
         self,
         df: pd.DataFrame,
         fit: bool = False
     ) -> np.ndarray:
-        """
-        Извлекает признаки из метаданных.
-        
-        ЗАЧЕМ: Отдел и тип инцидента связаны:
-            - Finance часто работает с финансовыми данными
-            - IT редко использует USB (есть права админа)
-        
-        ВАЖНО: Не используем incident_type, т.к. это целевая переменная!
-        
-        Args:
-            df: DataFrame с метаданными
-            fit: Обучать ли Label Encoders
-        
-        Returns:
-            np.ndarray: Матрица метаданных (n_samples x n_features)
-        """
+
         features = []
-        
-        # Категориальные признаки для кодирования
-        # ВАЖНО: не используем incident_type, т.к. это целевая переменная (data leakage!)
+    
+        # =========================================================================
+        # 1. КАТЕГОРИАЛЬНЫЕ ПРИЗНАКИ (как было)
+        # =========================================================================
         categorical_features = ["department"]
         
         for col in categorical_features:
@@ -255,11 +240,62 @@ class FeatureExtractor:
             
             features.append(encoded.reshape(-1, 1))
         
-        # Объединяем все признаки
-        if features:
-            return np.hstack(features)
+        # =========================================================================
+        # 2. TEMPORAL FEATURES (НОВОЕ!)
+        # =========================================================================
+        # ЗАЧЕМ: Ночные инциденты более подозрительные (Low днём, High ночью)
+        
+        if 'timestamp' in df.columns:
+            # Парсим timestamp
+            timestamps = pd.to_datetime(df['timestamp'], errors='coerce')
+            
+            # 2.1 Час дня (0-23)
+            hour_of_day = timestamps.dt.hour.fillna(12).values.reshape(-1, 1)
+            features.append(hour_of_day)
+            
+            # 2.2 Ночной инцидент (binary: 0-6 или 22-23 часа)
+            is_night = ((timestamps.dt.hour >= 22) | (timestamps.dt.hour <= 6)).fillna(False).astype(int).values.reshape(-1, 1)
+            features.append(is_night)
+            
+            # 2.3 День недели (0=Monday, 6=Sunday)
+            day_of_week = timestamps.dt.dayofweek.fillna(2).values.reshape(-1, 1)
+            features.append(day_of_week)
+            
+            # 2.4 Выходной день (binary: Saturday=5, Sunday=6)
+            is_weekend = (timestamps.dt.dayofweek >= 5).fillna(False).astype(int).values.reshape(-1, 1)
+            features.append(is_weekend)
+            
+            logger.debug(f"   Temporal features: hour_of_day, is_night, day_of_week, is_weekend")
         else:
-            return np.zeros((len(df), 0))
+            logger.warning("Column 'timestamp' not found, skipping temporal features")
+        
+        # =========================================================================
+        # 3. BOOLEAN METADATA FEATURES (НОВОЕ!)
+        # =========================================================================
+        # ЗАЧЕМ: Внешний получатель и наличие PII = выше риск
+        
+        # 3.1 Внешний получатель (если есть)
+        if 'is_external_recipient' in df.columns:
+            is_external = df['is_external_recipient'].fillna(False).astype(int).values.reshape(-1, 1)
+            features.append(is_external)
+            logger.debug(f"   Boolean feature: is_external_recipient")
+        
+        # 3.2 Содержит PII (если есть)
+        if 'contains_pii' in df.columns:
+            contains_pii = df['contains_pii'].fillna(False).astype(int).values.reshape(-1, 1)
+            features.append(contains_pii)
+            logger.debug(f"   Boolean feature: contains_pii")
+        
+        # =========================================================================
+        # 4. ОБЪЕДИНЯЕМ ВСЕ ПРИЗНАКИ
+        # =========================================================================
+        if features:
+            metadata_matrix = np.hstack(features)
+            logger.debug(f"   Total metadata features: {metadata_matrix.shape[1]}")
+            return metadata_matrix
+        else:
+        
+            return np.zeros((len(df), 0))   
     
     # =========================================================================
     # ГЛАВНЫЕ МЕТОДЫ
@@ -379,21 +415,36 @@ class FeatureExtractor:
         """Формирует список имён признаков."""
         names = []
         
-        # PII признаки
+        # PII признаки (7 признаков)
         if self.use_pii:
             names.extend([
                 "has_card", "has_passport", "has_inn",
                 "has_snils", "has_phone", "has_email", "pii_count"
             ])
         
-        # TF-IDF признаки
+        # TF-IDF признаки (50 признаков)
         if hasattr(self.tfidf, 'get_feature_names_out'):
             tfidf_names = [f"tfidf_{name}" for name in self.tfidf.get_feature_names_out()]
             names.extend(tfidf_names)
         
-        # Метаданные
+        # Метаданные (7 признаков: department + 6 новых)
+        # 1. Категориальные
         for col in self.label_encoders.keys():
             names.append(f"encoded_{col}")
+        
+        # 2. Temporal features (НОВОЕ!)
+        names.extend([
+            "hour_of_day",
+            "is_night", 
+            "day_of_week",
+            "is_weekend"
+        ])
+        
+        # 3. Boolean features (НОВОЕ!)
+        names.extend([
+            "is_external_recipient",
+            "contains_pii"
+        ])
         
         self.feature_names = names
     

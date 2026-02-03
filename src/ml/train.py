@@ -197,23 +197,43 @@ class DLPClassifier:
         accuracy_type = self.model_incident_type.score(X_test, y_test_type)
         logger.info(f"Incident Type Accuracy: {accuracy_type:.4f}")
         
-        # =====================================================================
         # ШАГ 4: ОБУЧЕНИЕ МОДЕЛИ ДЛЯ severity
         # =====================================================================
-        
+
         logger.info("\n" + "=" * 80)
         logger.info("TRAINING: Severity Classifier")
         logger.info("=" * 80)
-        
-        self.model_severity = CatBoostClassifier(**self.catboost_params)
-        
+
+        # НОВОЕ: Вычисляем class weights для балансировки классов
+        # ЗАЧЕМ: Low класс имеет только 11% примеров, нужно дать ему больший вес
+        from sklearn.utils.class_weight import compute_class_weight
+        import numpy as np
+
+        class_weights = compute_class_weight(
+            'balanced',
+            classes=np.unique(y_train_severity),
+            y=y_train_severity
+        )
+
+        # Создаём словарь {класс: вес}
+        class_weight_dict = dict(zip(np.unique(y_train_severity), class_weights))
+
+        logger.info(f"Computed class weights: {class_weight_dict}")
+        logger.info(f"   (Low класс получит вес ~{class_weights.max()/class_weights.min():.1f}x больше чем High)")
+
+        # НОВОЕ: Копируем параметры и добавляем class_weights
+        severity_params = self.catboost_params.copy()
+        severity_params['class_weights'] = list(class_weights)
+
+        self.model_severity = CatBoostClassifier(**severity_params)
+
         self.model_severity.fit(
             X_train,
             y_train_severity,
             eval_set=(X_test, y_test_severity),
             verbose=False
         )
-        
+
         # Оценка на test
         accuracy_severity = self.model_severity.score(X_test, y_test_severity)
         logger.info(f"Severity Accuracy: {accuracy_severity:.4f}")
