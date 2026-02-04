@@ -232,12 +232,22 @@ def predict_incident(
         
         # Формируем DataFrame для модели
         # ВАЖНО: Модель ожидает те же колонки что и при обучении
+        
+        # Объединяем subject + body в description (как модель ожидает)
+        full_text = f"{request.subject}. {request.body}"
+        
+        # Определяем department из email домена (если не указан)
+        department = request.department if request.department else "Unknown"
+        
+        # Проверяем внешний получатель (не @company.com = внешний)
+        is_external = not request.recipient_email.endswith("@company.com")
+        
         data = {
-            'description': [request.description],
-            'department': [request.department],
-            'timestamp': [request.timestamp or datetime.now().isoformat()],
-            'is_external_recipient': [request.is_external_recipient],
-            'contains_pii': [request.contains_pii if request.contains_pii is not None else False]
+            'description': [full_text],
+            'department': [department],
+            'timestamp': [request.timestamp],
+            'is_external_recipient': [is_external],
+            'contains_pii': [None]  # PII detector определит автоматически
         }
         
         df = pd.DataFrame(data)
@@ -250,7 +260,7 @@ def predict_incident(
         model_type = classifier['model_incident_type']
         pred_type_raw = model_type.predict(X)
 
-        # ИСПРАВЛЕНО: Конвертируем numpy array в string
+        # Конвертируем numpy array в string
         if isinstance(pred_type_raw, np.ndarray):
             pred_type = str(pred_type_raw.ravel()[0])
         else:
@@ -264,11 +274,10 @@ def predict_incident(
             confidence_type = 0.95  # Fallback
         
         # Предсказываем критичность
-        # Предсказываем критичность
         model_severity = classifier['model_severity']
         pred_severity_raw = model_severity.predict(X)
 
-        # ИСПРАВЛЕНО: Конвертируем numpy array в string
+        # Конвертируем numpy array в string
         if isinstance(pred_severity_raw, np.ndarray):
             pred_severity = str(pred_severity_raw.ravel()[0])
         else:
@@ -281,10 +290,10 @@ def predict_incident(
         except:
             confidence_severity = 0.60  # Fallback
         
-        # Обнаруживаем PII
+        # Обнаруживаем PII в тексте письма
         from src.nlp.pii_detector import PIIDetector
         pii_detector = PIIDetector()
-        pii_result = pii_detector.detect(request.description)
+        pii_result = pii_detector.detect(full_text)
         
         # Извлекаем типы PII
         detected_pii = []
@@ -311,7 +320,7 @@ def predict_incident(
             pred_type,
             pred_severity,
             pii_count,
-            request.is_external_recipient
+            is_external  # Используем вычисленное значение
         )
         
         # Считаем время обработки
