@@ -93,10 +93,10 @@ curl -X 'POST' \
 }'
 ```
 ### Пример запроса
-![Request Example](screenshots/pred.png)
+![Request Example](screen/pred.png)
 
 ### Пример ответа
-![Response Example](screenshots/response.png)
+![Response Example](screen/response.png)
 
 ## Технологии
 
