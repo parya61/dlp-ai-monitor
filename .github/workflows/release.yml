@@ -1,0 +1,133 @@
+# ============================================================================
+# Release Workflow
+# 
+# ЧТО: Автоматический релиз при создании Git тега
+# ЗАЧЕМ: Публикация Docker образа, создание GitHub Release
+#
+# ТРИГГЕРЫ:
+# - Push тега вида v*.*.* (например v1.0.0, v2.1.3)
+#
+# ИСПОЛЬЗОВАНИЕ:
+# 1. git tag -a v1.0.0 -m "Release v1.0.0"
+# 2. git push origin v1.0.0
+# 3. GitHub Actions автоматически создаст релиз
+# ============================================================================
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Например: v1.0.0, v2.1.3
+
+env:
+  REGISTRY: ghcr.io  # GitHub Container Registry
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ==========================================================================
+  # JOB 1: CREATE RELEASE - Создание GitHub Release
+  # ==========================================================================
+  release:
+    name: 📦 Create GitHub Release
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Нужно для генерации changelog
+      
+      - name: 📝 Generate changelog
+        id: changelog
+        run: |
+          echo "Generating changelog..."
+          # Простой changelog: список коммитов с предыдущего тега
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -z "$PREV_TAG" ]; then
+            COMMITS=$(git log --pretty=format:"- %s (%h)" HEAD)
+          else
+            COMMITS=$(git log --pretty=format:"- %s (%h)" $PREV_TAG..HEAD)
+          fi
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: 🎉 Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body: |
+            ## 🚀 Release ${{ github.ref_name }}
+            
+            ### 📝 Changes
+            ${{ steps.changelog.outputs.changelog }}
+            
+            ### 📦 Installation
+            ```bash
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+            ```
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ==========================================================================
+  # JOB 2: BUILD AND PUSH DOCKER IMAGE - Публикация образа
+  # ==========================================================================
+  docker:
+    name: 🐳 Build and Push Docker Image
+    runs-on: ubuntu-latest
+    needs: release
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+      
+      - name: 🐳 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: 🔐 Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: 🏷️ Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest
+      
+      - name: 🏗️ Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+# =============================================================================
+# ПРИМЕЧАНИЯ:
+# 
+# 1. Для работы нужно настроить GitHub Container Registry:
+#    - Settings → Packages → Connect repository
+# 
+# 2. Для публикации в Docker Hub вместо GHCR:
+#    - Замените REGISTRY на docker.io
+#    - Добавьте secrets: DOCKER_USERNAME, DOCKER_PASSWORD
+# 
+# 3. Версионирование:
+#    - v1.0.0 → latest, 1, 1.0, 1.0.0
+#    - v2.1.3 → latest, 2, 2.1, 2.1.3
+# =============================================================================
