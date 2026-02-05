@@ -115,7 +115,7 @@ mlflow ui
 # Открой http://localhost:5000
 ```
 
-![MLflow Dashboard](screen/mlflow.png)
+![MLflow Dashboard](screen/ml_flow.png)
 
 ---
 
